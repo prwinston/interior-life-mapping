@@ -46,12 +46,13 @@ greater strength.
 ├── public/            ← the site Cloudflare deploys (build output directory)
 │   ├── index.html     ← the entire app (HTML + CSS + JS in one file)
 │   └── _headers       ← security & caching headers for Cloudflare Pages
-├── wrangler.toml      ← config for `wrangler pages deploy`
 ├── .gitignore
 └── README.md
 ```
 
-There is nothing to compile. `public/index.html` is the whole application.
+There is **nothing to compile**. `public/index.html` is the whole application.
+This is a pure static site — there is deliberately no `wrangler.toml`,
+`package.json`, or build tooling (see *Troubleshooting* below for why).
 
 ---
 
@@ -61,12 +62,10 @@ Any of these work — pick one:
 
 ```bash
 # 1. Simplest: just open the file in a browser
-open public/index.html          # macOS
-# (or double-click public/index.html)
+open public/index.html          # macOS  (or double-click the file)
 
-# 2. Serve it (recommended, matches production paths)
-npx serve public                # then visit the printed URL
-# or
+# 2. Serve it (matches production paths)
+npx serve public                        # then visit the printed URL
 python3 -m http.server 8000 -d public   # then visit http://localhost:8000
 ```
 
@@ -85,34 +84,64 @@ python3 -m http.server 8000 -d public   # then visit http://localhost:8000
    git remote add origin https://github.com/<you>/interior-life-mapping.git
    git push -u origin main
    ```
-2. In the **Cloudflare dashboard** → **Workers & Pages** → **Create** →
-   **Pages** → **Connect to Git**, and select this repository.
-3. Set the build configuration:
-   - **Framework preset:** `None`
-   - **Build command:** *(leave empty)*
-   - **Build output directory:** `public`
-4. **Save and Deploy.** Cloudflare gives you a `https://<project>.pages.dev`
-   URL. Every push to `main` re-deploys automatically; pull requests get
-   preview URLs.
+2. **Cloudflare dashboard** → **Workers & Pages** → **Create** →
+   **Pages** → **Connect to Git**, and pick this repository.
+3. Set the build configuration **exactly** like this:
+
+   | Setting | Value |
+   |---|---|
+   | Framework preset | **None** |
+   | Build command | *(leave completely empty)* |
+   | Build output directory | **`public`** |
+
+4. **Save and Deploy.** You get a `https://<project>.pages.dev` URL. Every
+   push to `main` re-deploys; pull requests get preview URLs.
+
+> The three settings above are the whole game. Because there is no build
+> command, Cloudflare simply publishes the files in `public/` — it cannot
+> "fail to build" when there is nothing to build.
 
 ### Option B — Wrangler CLI (deploy from your machine)
 
+No config file needed — pass the output folder and project name as flags:
+
 ```bash
-# One-time
 npm install -g wrangler
 wrangler login
-
-# Deploy (wrangler.toml already points at ./public)
-wrangler pages deploy
-# or explicitly:
 wrangler pages deploy public --project-name=interior-life-mapping
 ```
 
 ### Custom domain
 
-In your Pages project → **Custom domains** → **Set up a domain**, add e.g.
-`assessment.yourdomain.com`. If the domain's DNS is on Cloudflare, the record
-is created for you.
+Pages project → **Custom domains** → **Set up a domain**
+(e.g. `assessment.yourdomain.com`).
+
+---
+
+## Troubleshooting
+
+**"Missing entry-point to Worker script or to assets directory" / build fails
+immediately.**
+This happens when a `wrangler.toml` is present in a *Pages* repo: Cloudflare's
+Git builder switches into "build with Wrangler configuration" mode, treats the
+project as a **Worker**, looks for a script entry-point, and fails because a
+static site has none. **Fix:** there must be no `wrangler.toml` in the repo
+(this package ships without one). If you added one, delete it, commit, and
+re-deploy.
+
+**"Output directory 'public' not found" or the deployed page is the README /
+a 404.**
+The **Build output directory** in the Pages settings is wrong. Set it to
+`public` (Settings → Builds & deployments → Build configuration), then
+**Retry deployment**.
+
+**Build tries to run `npm install` / a framework build.**
+Set **Framework preset: None** and clear the **Build command** field entirely.
+Retry.
+
+**Fonts don't load / a security warning in the console.**
+The Content-Security-Policy in `public/_headers` already allows Google Fonts.
+If you host the fonts elsewhere, update the `style-src` / `font-src` lines.
 
 ---
 
@@ -128,7 +157,7 @@ Everything lives in `public/index.html`:
   `<style>` block (`--ink`, `--brass`, the per-room hues, etc.).
 
 After editing, refresh locally to confirm, then commit and push (Option A) or
-re-run `wrangler pages deploy` (Option B).
+re-run the `wrangler pages deploy` command (Option B).
 
 ---
 
@@ -136,15 +165,11 @@ re-run `wrangler pages deploy` (Option B).
 
 - **Scoring formula:** the original paper form printed "÷ 7 × 5," which would
   score the lowest answers highest. This app uses the **item mean (raw ÷ 7)**,
-  which is what the 1.0–5.0 reference bands actually describe. Lowest possible
-  score is 1.0 (Priority); highest is 5.0 (Exceptional).
+  which is what the 1.0–5.0 reference bands actually describe.
+- **No LLM / no server:** all scoring runs in the visitor's browser. Cloudflare
+  only serves the static file; nothing is sent anywhere.
 - **Fonts** load from Google Fonts (Fraunces + Hanken Grotesk) with system
-  fallbacks, so the page still renders cleanly offline or if fonts are blocked.
-- **Privacy:** nothing is stored or sent anywhere. All scoring happens in the
-  visitor's browser.
-- To tighten the Content-Security-Policy further, move the inline `<style>`
-  and `<script>` into separate `styles.css` / `app.js` files and drop
-  `'unsafe-inline'` from `_headers`.
+  fallbacks, so the page still renders cleanly if fonts are blocked.
 
 ---
 
