@@ -1,0 +1,6 @@
+name = "interior-life-mapping"
+compatibility_date = "2026-09-19"
+
+# This is a static Cloudflare Pages project (no build step, no Functions).
+# The site lives in ./public — that folder is what gets deployed.
+pages_build_output_dir = "public"
